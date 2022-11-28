@@ -19,29 +19,18 @@
 #define ACK "ACK"
 
 static volatile int sockfd, port;
-
 void get_from_user(char* name, char* p) {
 	printf("Please enter %s: ", name);
 	fgets(p, BUFFER_SIZE, stdin);
 	if ((strlen(p) > 0) && (p[strlen(p) - 1] == '\n')) p[strlen (p) - 1] = '\0';
 }
 void init_handler() {close(sockfd);}
-// void init_socket(char *ip) {
-//     server.sin_addr.s_addr = inet_addr(ip);
-//     server.sin_port = htons(port);
-//     server.sin_family = AF_INET;
-//     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0){perror("Socket()");exit(2);} 
-//     puts("Socket created successfully");
-// 	signal(SIGINT, init_handler);
-// 	// if(connect(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0){perror("connect()");exit(3);}
-//     // puts("Connection established");
-// }
-
 int main(int argc, char **argv) {
     if (argc != 3) { fprintf(stderr, "Usage: %s ip_address port\n", argv[0]); exit(1); }
     char group_name[BUFFER_SIZE], buffer[BUFFER_SIZE];
     int port, childpid, joined=1, server_len;
     struct sockaddr_in server;
+    // Init socket
     port = atoi(argv[2]);
     server.sin_addr.s_addr = inet_addr(argv[1]);
     server.sin_port = htons(port);
@@ -57,7 +46,7 @@ int main(int argc, char **argv) {
     // ACK/ERR
     if (read(sockfd, (char *)buffer, BUFFER_SIZE) < 0){perror("recvfrom()"); exit(1);}
     if (strcmp(ACK, buffer) == 0) {puts("Multicast server ACK JOIN request");} 
-    else if (strcmp(ERR, buffer) == 0) {puts("Multicast server did not ACK JOIN request");exit(1);}
+    else if (strcmp(ERR, buffer) == 0) {puts("Multicast server did not ACK JOIN request, exiting...");exit(1);}
     puts("Waiting for messages...");
     // Message
     if ((childpid = fork()) == 0) {

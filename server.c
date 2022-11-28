@@ -45,8 +45,11 @@ void init_socket() {
 	puts("Binding was successful");
 	signal(SIGINT, init_handler);
 }
-
-void *myThreadFun(void *vargp) {
+void print_clients() {
+    puts("Printing clients...");
+    for (int j=0; j<max_clients; j++) {printf("Client %s:%d\n", inet_ntoa(clients[j].sin_addr), ntohs(clients[j].sin_port));}
+}
+void *handle_clients(void *vargp) {
     struct sockaddr_in client;
     char b[BUFFER_SIZE];
     int client_len;
@@ -59,29 +62,28 @@ void *myThreadFun(void *vargp) {
                 printf("Received JOIN request from %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
                 sendto(sockfd, ACK, sizeof(ACK), 0, (struct sockaddr*)&client, client_len);
                 for (int j=0; j<max_clients; j++) {
-                    if (memcmp(&clients[j], &zero_sock_addr, addr_size) == 0) {
+                    if ((clients[j].sin_addr.s_addr == zero_sock_addr.sin_addr.s_addr) && (clients[j].sin_port == zero_sock_addr.sin_port)) {
                         clients[j] = client;
                         printf("Client %s:%d\n", inet_ntoa(clients[j].sin_addr), ntohs(clients[j].sin_port));
                         break;
                     }
                 }
+                print_clients();
                 n_clients++;
-            } else {
-                sendto(sockfd, ERR, sizeof(ERR), 0, (struct sockaddr*)&client, client_len);
-            }
+            } else sendto(sockfd, ERR, sizeof(ERR), 0, (struct sockaddr*)&client, client_len);
         } else if (strcmp(QUIT, b) == 0) {
             printf("Received QUIT request from %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
             for (int j=0; j<max_clients; j++) {
-                if (memcmp(&clients[j], &client, addr_size) == 0) {
-                    bzero(&clients[j], addr_size);
+                if ((clients[j].sin_addr.s_addr == client.sin_addr.s_addr) && (clients[j].sin_port == client.sin_port)) {
+                    clients[j] = zero_sock_addr;
                     break;
                 }
             }
+            print_clients();
             n_clients--;
         }
     }
 }
-
 int main(int argc, char **argv) {
     if (argc != 2) {fprintf(stderr, "Usage: %s port\n", argv[0]); exit(1);}
     pthread_t thread_id;
@@ -91,8 +93,10 @@ int main(int argc, char **argv) {
     // Get group name and max clients from user
     get_from_user("group name", group_name);puts(group_name);
     get_from_user("max clients", buffer);max_clients=atoi(buffer);printf("%d\n", max_clients);bzero(buffer, BUFFER_SIZE);
-    for (int j=0; j<max_clients; j++) {memset(&clients[j], 0, addr_size);printf("Client %s:%d\n", inet_ntoa(clients[j].sin_addr), ntohs(clients[j].sin_port));}
-    pthread_create(&thread_id, NULL, myThreadFun, NULL);
+    for (int j=0; j<max_clients; j++) {memset(&clients[j], 0, addr_size);}
+    print_clients();
+    pthread_create(&thread_id, NULL, handle_clients, NULL);
+    // Get number of messages
     get_from_user("number of messages", buffer);n_msgs=atoi(buffer);printf("%d\n", n_msgs);bzero(buffer, BUFFER_SIZE);
     int client_len = sizeof(clients[0]);
     while(i<n_msgs) {
@@ -104,7 +108,6 @@ int main(int argc, char **argv) {
         }
         i++;
     }
-    while ((wpid = wait(&status)) > 0);
     puts("Exiting...");
     close(sockfd);
     exit(0);
